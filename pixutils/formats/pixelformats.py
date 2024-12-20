@@ -32,7 +32,8 @@ class PixelFormat:
     def __init__(self, name: str,
                  drm_fourcc: None | str, v4l2_fourcc: None | str,
                  colorencoding: PixelColorEncoding, packed: bool,
-                 pixel_align: tuple[int, int], planes) -> None:
+                 pixel_align: tuple[int, int], planes,
+                 memory_alignment: int = 16) -> None:
         self.name = name
         self.drm_fourcc = str_to_fourcc(drm_fourcc) if drm_fourcc else None
         self.v4l2_fourcc = str_to_fourcc(v4l2_fourcc) if v4l2_fourcc else None
@@ -40,6 +41,8 @@ class PixelFormat:
         self.packed = packed
         # pixel alignment (width, height)
         self.pixel_align = pixel_align
+        # Pixels are aligned in memory: many platforms align on 16 bytes
+        self.memory_alignment = memory_alignment
 
         def adjust_p(p):
             if len(p) == 1:
@@ -63,9 +66,12 @@ class PixelFormat:
         return (_align_up(width, self.pixel_align[0]),
                 _align_up(height, self.pixel_align[1]))
 
-    def stride(self, width: int, plane: int = 0, align = 1):
+    def stride(self, width: int, plane: int = 0, align: int = None):
         if plane >= len(self.planes):
             raise RuntimeError()
+
+        if align is None:
+            align = self.memory_alignment
 
         assert width % self.pixel_align[0] == 0
 
@@ -91,7 +97,7 @@ class PixelFormat:
         return stride * (height // pi.vsub)
 
 
-    def framesize(self, width: int, height: int, align = 1):
+    def framesize(self, width: int, height: int, align: int = 1):
         size = 0
 
         for i in range(len(self.planes)):
@@ -100,7 +106,7 @@ class PixelFormat:
 
         return size
 
-    def dumb_size(self, width: int, height: int, plane: int = 0, align = 1):
+    def dumb_size(self, width: int, height: int, plane: int = 0, align: int = 1):
         """
         Helper function mainly for DRM dumb framebuffer
         Returns (width, height, bitspp) tuple which results in a suitable plane
